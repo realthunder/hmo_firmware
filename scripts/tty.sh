@@ -16,6 +16,7 @@ tty_unlock() {
 }
 
 tty_send() {
+  stty -F $TTYDEV $TTYBAUD raw igncr cs8 min 0
   echo "$@" > $TTYDEV
 }
 
@@ -23,7 +24,7 @@ tty_run()  {
   stty -F $TTYDEV $TTYBAUD raw igncr cs8 time $1 min 0
   shift
   (
-    tty_send "$@"
+    echo "$@" > $TTYDEV
 
     # the first line is the echoed command, so discard it
     read line || return 1
