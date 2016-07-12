@@ -1,41 +1,67 @@
-unsigned stepCount;
-unsigned stepDelay;
+volatile unsigned stepCount;
+unsigned stepDelay = 1000;
+unsigned stepOvershoot = 10;
+byte stToggle;
+DECLARE_TIMEOUT(st);
 
-int st(unsigned dir, unsigned count, unsigned delay) {
-    digitalWrite(STEPPER_DIR,dir==1?HIGH:LOW);
+void stDisable() {
+    if(stepCount) {
+        stepCount = 0;
+        digitalWrite(PIN_STEP_SLP,LOW);
+    }
+}
 
-    stepDelay = delay;
+void st(unsigned dir, unsigned count) {
+    if(stepCount) {
+        shellReply("!");
+        return;
+    }
+    digitalWrite(PIN_PWR_SEL,LOW);
+    digitalWrite(PIN_STEP_DIR,dir==1?HIGH:LOW);
     stepCount = count;
-
-    printInteger(dir,0,0);
-    sp(",");
-    printInteger(stepCount,0,0);
-    sp(",");
-    printInteger(stepDelay,0,0);
-    speol();
-
-    digitalWrite(STEPPER_SLP,stepCount?HIGH:LOW);
-    return 0;
+    RESET_TIMEOUT_MS(st);
+    stToggle = 1;
+    digitalWrite(PIN_STEP_SLP,HIGH);
 }
 
 numvar stCmd() {
-    return st(getarg(1),getarg(2),getarg(3));
+    byte n = getarg(0);
+    if(!n) {
+        printIntegerInBase(stepCount,10,3,0);
+        speol();
+    }else switch(getarg(1)) {
+    case 0:
+    case 1:
+        st(getarg(1),getarg(2));
+        break;
+    case 2:
+        stepDelay = getarg(2);
+        break;
+    case 3:
+        stepOvershoot = getarg(2);
+        if(!stepOvershoot)
+            stepOvershoot = 1;
+        break;
+    }
+    return 0;
 }
 
-void loopSt() {
-    if(!stepCount) return;
-    digitalWrite(STEPPER_STEP,HIGH);
-    delay(stepDelay);
-    digitalWrite(STEPPER_STEP,LOW);
-    delay(stepDelay);
-    if(--stepCount == 0)
-        digitalWrite(STEPPER_SLP,LOW);
+void loopStepper() {
+    if(stepCount && IS_TIMEOUT2_MS(st,stepDelay)) {
+        UPDATE_TIMEOUT(st);
+        digitalWrite(PIN_STEP,stToggle);
+        if(stToggle==0 && --stepCount==0)
+            digitalWrite(PIN_STEP_SLP,LOW);
+        stToggle = !stToggle;
+    }
 }
 
-void setupSt() {
-    pinMode(STEPPER_DIR,OUTPUT);
-    pinMode(STEPPER_STEP,OUTPUT);
-    digitalWrite(STEPPER_SLP,LOW);
-    pinMode(STEPPER_SLP,OUTPUT);
+void stStop() {
+    if(stepCount) 
+        stepCount = stepOvershoot;
+}
+
+void setupStepper() {
     addBitlashFunction("st", (bitlash_function) stCmd);
+    attachInterrupt(0,stStop,FALLING);
 }

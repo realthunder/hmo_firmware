@@ -1,8 +1,5 @@
 #include <bitlash.h>
 
-#define SHELL_EEPROM
-#define SHELL_REBOOT
-
 #ifdef SHELL_EEPROM
 #include <EEPROM.h>
 #endif
@@ -40,6 +37,11 @@ void enableTX(byte enable) {
         BITLASH_TXEN = 0;
     }
 #endif
+}
+
+void shellReply(const char *c) {
+    sp(c);
+    speol();
 }
 
 #ifdef SHELL_TRACE

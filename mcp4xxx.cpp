@@ -3,8 +3,9 @@
 namespace icecave {
 namespace arduino {
 
-MCP4XXX::MCP4XXX(Pot pot, Resolution resolution, WiperConfiguration config)
-  : m_pot(pot)
+MCP4XXX::MCP4XXX(byte select_pin, Pot pot, Resolution resolution, WiperConfiguration config)
+  : m_select_pin(select_pin)
+  , m_pot(pot)
   , m_max_value(resolution + config) // Potentiometer configurations allow "resolution + 1" values, for setting the "full-scale" wiper position.
   , m_select_nesting(0)
 {}
@@ -141,7 +142,7 @@ void MCP4XXX::select(void) const
     SPI.setBitOrder(MSBFIRST);
     SPI.setDataMode(SPI_MODE0);
     SPI.setClockDivider(SPI_CLOCK_DIV128);
-    digitalWrite(SS,LOW);
+    digitalWrite(m_select_pin,LOW);
   }
 }
 
@@ -149,7 +150,7 @@ void MCP4XXX::deselect(void) const
 {
   if (--m_select_nesting == 0)
   {
-    digitalWrite(SS,HIGH);
+    digitalWrite(m_select_pin,HIGH);
     SPI.end();
   }
 }

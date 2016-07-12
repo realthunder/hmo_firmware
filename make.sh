@@ -31,10 +31,10 @@ if test $board && test -z $nosync; then
     done
     ssh precise642 "cd $path/$base && ./make.sh nosync $@"
 else
-    make "$args" || exit
+    make $args || exit
     if test $flash; then
         . scripts/tty.sh
         tty_send ${flash}reboot
-        make "$args" upload
+        make $args upload
     fi
 fi

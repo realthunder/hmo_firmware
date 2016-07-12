@@ -15,13 +15,16 @@ tty_unlock() {
   flock -u 100
 }
 
+tty_setup() {
+  stty -F $TTYDEV $TTYBAUD raw igncr cs8 min 0 "$@"
+}
+
 tty_send() {
-  stty -F $TTYDEV $TTYBAUD raw igncr cs8 min 0
   echo "$@" > $TTYDEV
 }
 
 tty_run()  {
-  stty -F $TTYDEV $TTYBAUD raw igncr cs8 time $1 min 0
+  tty_setup time $1
   shift
   (
     echo "$@" > $TTYDEV

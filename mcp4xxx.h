@@ -43,7 +43,7 @@ class MCP4XXX
      * pot         - For the 2-pot variants (MCP42XX), the potentiometer to control. Must be pot_0 for MCP41XX chips.
      * resolution  - res_7bit for MCP4X3X and MCP4X4X, res_8bit for MCP4X5X and MCP4X6X.
      */
-    MCP4XXX(Pot pot = pot_0, Resolution resolution = res_8bit, WiperConfiguration config = potentiometer);
+    MCP4XXX(byte select_pin = SS, Pot pot = pot_0, Resolution resolution = res_8bit, WiperConfiguration config = potentiometer);
 
     /**
      * Retrieve the maximum value allowed for the wiper position.
@@ -343,6 +343,7 @@ class MCP4XXX
      */
     bool get_tcon(byte mask, bool& value) const;
 
+    byte m_select_pin;
     Pot m_pot;
     word m_max_value;
     mutable unsigned int m_select_nesting;
