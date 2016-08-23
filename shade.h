@@ -22,19 +22,18 @@ void shdDisable() {
 }
 
 void shdSet(byte value) {
-    if(value) {
-        if(!shdActive) {
-            //turn off power for motor and solenoid
-            digitalWrite(PIN_PWR_SEL,LOW);
-            FrequencyTimer2::setPeriod(10000);
-            FrequencyTimer2::enable();
-            pinMode(PIN_SHD_DRV,OUTPUT);
-            digitalWrite(PIN_SHD_SLP,HIGH);
-            shdActive = 1;
-        }
-        shdTargetValue = value;
-        RESET_TIMEOUT(shd);
+    if(!shdActive) {
+        //turn off power for motor and solenoid
+        digitalWrite(PIN_PWR_SEL,LOW);
+        FrequencyTimer2::setPeriod(10000);
+        FrequencyTimer2::enable();
+        pinMode(PIN_SHD_DRV,OUTPUT);
+        digitalWrite(PIN_SHD_SLP,HIGH);
+        shdActive = 1;
+        shdValue = 50;
     }
+    shdTargetValue = value;
+    RESET_TIMEOUT(shd);
 }
 
 void shdMotorDisable() {
@@ -64,7 +63,7 @@ void shdMotorDrive(byte dir) {
 }
 
 numvar shdCmd() {
-    byte n = getarg(1);
+    byte n = getarg(0);
     if(!n) 
         shdDisable();
     else {
@@ -106,14 +105,13 @@ void loopShade() {
             shdMotorDisable();
         }else if(digitalRead(PIN_MT_EN) == LOW)
             shdMotorDisable();
-    }
-    if(shdActive && shdValue!=shdTargetValue) {
+    }else if(shdActive && shdValue!=shdTargetValue) {
         if(IS_TIMEOUT(shd,SHD_INTERVAL)) {
             if(shdValue > shdTargetValue)
                 vrSet(--shdValue);
             else
                 vrSet(++shdValue);
-            RESET_TIMEOUT(shd);
+            UPDATE_TIMEOUT(shd);
         }
     }
 }

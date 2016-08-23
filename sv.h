@@ -40,8 +40,12 @@ numvar svCmd() {
         svDisable();
     else if(n==1)
         svInterval = getarg(1);
-    else
+    else if(n==2)
         svDrive(getarg(1),getarg(2));
+    else if(n==3) {
+        solDrive(getarg(3));
+        svDrive(getarg(1),getarg(2));
+    }
     return 0;
 }
 
