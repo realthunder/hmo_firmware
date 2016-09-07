@@ -1,51 +1,73 @@
-byte solActive;
-byte solVolt = VOLTAGE_4v5;
-unsigned solInterval = 500;
-DECLARE_TIMEOUT(sol);
+#ifndef HMO_SOLENOID_INCLUDED
+#define HMO_SOLENOID_INCLUDED
 
-void solDisable() {
-    if(solActive){
-        digitalWrite(PIN_SOL_EN,LOW);
-        solActive = 0;
-    }
-}
+class HmoSolenoid {
+private:
+    HmoTimer t_;
+    unsigned long interval_;
+    const byte pinEnable_;
+    const byte pinDir_;
+    byte active_;
+    byte volt_;
 
-void solDrive(byte dir) {
-    if(!solActive) {
-        shdDisable();
-        vrSet(solVolt);
-        digitalWrite(PIN_SOL_EN,HIGH);
-        digitalWrite(PIN_SOL_DIR,dir?HIGH:LOW);
-        digitalWrite(PIN_PWR_SEL,HIGH);
-        RESET_TIMEOUT(sol);
-        solActive = 1;
-    }
-}
+protected:
+    virtual void powerSetup(byte value) = 0;
 
-numvar solCmd() {
-    byte n = getarg(0);
-    if(!n)
-        solDisable();
-    else if(n==1)
-        solDrive(getarg(1));
-    else {
-        switch(getarg(1)) {
-        case 2:
-            solVolt = getarg(2);
-            break;
-        case 3:
-            solInterval = getarg(2);
-            break;
+    void drive(byte dir) {
+        if(!active_) {
+            digitalWrite(pinDir_,dir?HIGH:LOW);
+            powerSetup(volt_);
+            digitalWrite(pinEnable_,HIGH);
+            t_.reset();
+            active_ = 1;
         }
     }
-    return 0;
-}
 
-void setupSolenoid() {
-    addBitlashFunction("sol", (bitlash_function) solCmd);
-}
+public:
+    HmoSolenoid(byte pinEnable,byte pinDir)
+        :interval_(500)
+        ,pinEnable_(pinEnable)
+        ,pinDir_(pinDir)
+        ,active_(0)
+        ,volt_(VOLTAGE_4v5)
+    {}
 
-void loopSolenoid() {
-    if(solActive && IS_TIMEOUT(sol,solInterval))
-        solDisable();
-}
+    void disable() {
+        if(active_){
+            digitalWrite(pinEnable_,0);
+            powerSetup(LOW);
+            active_ = 0;
+        }
+    }
+
+    numvar cmd() {
+        byte n = getarg(0);
+        if(!n)
+            disable();
+        else if(n==1)
+            drive(getarg(1));
+        else {
+            switch(getarg(1)) {
+            case 2:
+                volt_ = getarg(2);
+                break;
+            case 3:
+                interval_ = getarg(2);
+                break;
+            }
+        }
+        return 0;
+    }
+
+    void setup() {
+        digitalWrite(pinEnable_,LOW);
+        pinMode(pinEnable_,OUTPUT);
+    }
+
+    void loop() {
+        if(active_ && t_.timeout(interval_))
+            disable();
+    }
+};
+
+#endif // HMO_SOLENOID_INCLUDED

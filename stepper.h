@@ -1,67 +1,117 @@
-volatile unsigned stepCount;
-unsigned stepDelay = 1000;
-unsigned stepOvershoot = 10;
-byte stToggle;
-DECLARE_TIMEOUT(st);
+#ifndef HMO_STEPPER_INCLUDED
+#define HMO_STEPPER_INCLUDED
 
-void stDisable() {
-    if(stepCount) {
-        stepCount = 0;
-        digitalWrite(PIN_STEP_SLP,LOW);
+class HmoStepper {
+private:
+    HmoTimer t_;
+    volatile int counter_;
+    int pos_;
+    unsigned delay_;
+    unsigned overshoot_;
+    byte toggle_;
+    byte dir_;
+    const byte pinDir_;
+    const byte pinStep_;
+
+protected:
+    virtual void powerSetup(byte value)=0;
+
+public:
+    HmoStepper(byte pinStep, byte pinDir, 
+                unsigned delay=1000, 
+                unsigned overshoot=10) 
+        :counter_(0)
+        ,pos_(0)
+        ,delay_(delay)
+        ,overshoot_(overshoot)
+        ,toggle_(0)
+        ,pinDir_(pinDir)
+        ,pinStep_(pinStep)
+    {}
+
+    void disable() {
+        if(counter_) {
+            powerSetup(LOW);
+            counter_ = 0;
+        }
     }
-}
 
-void st(unsigned dir, unsigned count) {
-    if(stepCount) {
-        shellReply("!");
-        return;
+    void step(int count) {
+        if(counter_) {
+            shellReply("!");
+            return;
+        }
+        if(count==0) {
+            pos_ = 0;
+            return;
+        }
+        if(count>0) {
+            digitalWrite(pinDir_,HIGH);
+            dir_ = 1;
+            counter_ = count;
+        }else{
+            digitalWrite(pinDir_,LOW);
+            dir_ = -1;
+            counter_ = -count;
+        }
+        t_.resetUs();
+        toggle_ = 1;
+        powerSetup(HIGH);
     }
-    digitalWrite(PIN_PWR_SEL,LOW);
-    digitalWrite(PIN_STEP_DIR,dir==1?HIGH:LOW);
-    stepCount = count;
-    RESET_TIMEOUT_MS(st);
-    stToggle = 1;
-    digitalWrite(PIN_STEP_SLP,HIGH);
-}
 
-numvar stCmd() {
-    byte n = getarg(0);
-    if(!n) {
-        printIntegerInBase(stepCount,10,3,0);
-        speol();
-    }else switch(getarg(1)) {
-    case 0:
-    case 1:
-        st(getarg(1),getarg(2));
-        break;
-    case 2:
-        stepDelay = getarg(2);
-        break;
-    case 3:
-        stepOvershoot = getarg(2);
-        if(!stepOvershoot)
-            stepOvershoot = 1;
-        break;
+    numvar cmd() {
+        byte n = getarg(0);
+        if(!n) {
+            printInteger(pos_,0,0);
+            if(counter_) {
+                spb(',');
+                printInteger(counter_,0,0);
+            }
+            speol();
+        }else if(n==1)
+            step(getarg(1));
+        else switch(getarg(1)) {
+        case 0:
+            delay_ = getarg(2);
+            break;
+        case 1:
+            overshoot_ = getarg(2);
+            if(!overshoot_)
+                overshoot_ = 1;
+            break;
+        }
+        return 0;
     }
-    return 0;
-}
 
-void loopStepper() {
-    if(stepCount && IS_TIMEOUT2_MS(st,stepDelay)) {
-        UPDATE_TIMEOUT(st);
-        digitalWrite(PIN_STEP,stToggle);
-        if(stToggle==0 && --stepCount==0)
-            digitalWrite(PIN_STEP_SLP,LOW);
-        stToggle = !stToggle;
+    void setup() {
+        pinMode(pinDir_,OUTPUT);
+        pinMode(pinStep_,OUTPUT);
     }
-}
 
-void stStop() {
-    if(stepCount) 
-        stepCount = stepOvershoot;
-}
+    void loop() {
+        if(counter_ && t_.timeoutUs(delay_)) {
+            t_.update();
+            digitalWrite(pinStep_,toggle_);
+            if(toggle_==0) {
+                pos_ += dir_;
+                if(counter_==1)
+                    disable();
+                else {
+                    --counter_;
+                    toggle_ = !toggle_;
+                }
+            }
+        }
+    }
 
-void setupStepper() {
-    addBitlashFunction("st", (bitlash_function) stCmd);
-    attachInterrupt(0,stStop,FALLING);
-}
+    void stop() {
+        if(counter_) 
+            counter_ = overshoot_;
+    }
+
+    bool active() const {
+        return counter_!=0;
+    }
+};
+
+#endif //HMO_STEPPER_INCLUDED

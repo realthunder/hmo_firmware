@@ -1,5 +1,3 @@
-#include <bitlash.h>
-
 #ifdef SHELL_EEPROM
 #include <EEPROM.h>
 #endif
@@ -15,8 +13,8 @@
 #ifndef SHELL_BROADCAST
 #   define SHELL_BROADCAST '0'
 #endif
-byte shID;
-byte shState;
+static byte shID;
+static byte shState;
 byte BITLASH_TXEN = 1;
 
 // Hardware dependent code to enable/disable UART TX pin.
@@ -113,16 +111,22 @@ void setupShell() {
     shID = EEPROM.read(0);
     if(shID == 0xff) shID = 0;
     if(shID) {
-        enableTX(0);
+        BITLASH_TXEN = 0;
         SHELL_SETSTATE(2);
     }
 #endif
+
     initBitlash(SHELL_BAUDRATE);
+    //delayed TX disable, because initBitlash() enables the serial TX
+    if(!BITLASH_TXEN)
+        enableTX(0);
+
     addBitlashFunction("id", (bitlash_function) idCmd);
 
 #ifdef SHELL_REBOOT
     addBitlashFunction("reboot", (bitlash_function) rebootCmd);
 #endif
+
 }
 
 void loopShell() {
@@ -156,12 +160,20 @@ NEXT:
     case 5://receiving broadcast command
     case 4://waiting for command eol 
         c = Serial.peek();
-        if(c == '\r' || c == '\n')
-            SHELL_SETSTATE(1);
+        if(c == '\r' || c == '\n') {
+            runBitlash();
+            enableTX(0);
+            SHELL_SETSTATE(2);
+            break;
+        }
         // fall through
     case 0://hand over to bitlash
         runBitlash();
         break;
     }
+}
+
+byte shellID() {
+    return shID;
 }
 

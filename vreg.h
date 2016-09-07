@@ -1,42 +1,63 @@
-#include <FrequencyTimer2.h>
+#ifndef HMO_VREG_INCLUDED
+#define HMO_VREG_INCLUDED
+
 #include <SPI.h>
 #include "mcp4xxx.h"
 
 using namespace icecave::arduino;
 
-void vrSet(word value) {
-    static MCP4XXX pot(PIN_POT_CS);
-    if(!value) {
-        digitalWrite(PIN_VREG_EN,LOW);
-        return;
+class HmoVReg {
+private:
+    MCP4XXX pot_;
+
+    const byte pinEnable_;
+    const byte pinInput_;
+    const byte pinSelect_;
+
+public:
+    HmoVReg(byte pinEnable, byte pinInput, byte pinSelect)
+        :pot_(pinSelect)
+        ,pinEnable_(pinEnable)
+        ,pinInput_(pinInput)
+        ,pinSelect_(pinSelect)
+    {}
+
+    virtual void powerSetup(byte value) {
+        if(!value) {
+            digitalWrite(pinEnable_,LOW);
+            return;
+        }
+        pot_.set(value);
+        digitalWrite(pinEnable_,HIGH);
     }
 
-    //make sure stepper is deactivated because of SPI pins overload
-    stDisable();
-    pot.set(value);
-    digitalWrite(PIN_VREG_EN,HIGH);
-}
+    numvar cmd() {
+        if(getarg(0)){ 
+            powerSetup(getarg(1));
+            return 0;
+        }
+        uint32_t v = analogRead(pinInput_);
+        printInteger(v,0,0);
+        spb(',');
 
-numvar vrCmd() {
-    if(getarg(0)){ 
-        vrSet(getarg(1));
+        // We are using 10K in a 10K+20K divider to measure voltage on a 5V device.
+        // This gives us in units of milli-volt
+        printInteger((5000*3*v)>>10,0,0);
+        speol();
         return 0;
     }
-    uint32_t v = analogRead(PIN_VREG_IN);
-    printIntegerInBase(v,10,3,0);
-    spb(',');
 
-    // We are using 10K in a 10K+20K divider to measure voltage on a 5V device.
-    // This gives us in units of milli-volt
-    printIntegerInBase((5000*3*v)>>10,10,3,0);
-    speol();
-    return 0;
-}
+    void setup() {
+        digitalWrite(pinEnable_,LOW);
+        pinMode(pinEnable_,OUTPUT);
+        pinMode(pinInput_,INPUT);
 
-void setupVr() {
-    addBitlashFunction("vr", (bitlash_function) vrCmd);
-}
+        digitalWrite(pinSelect_,HIGH);
+        pinMode(pinSelect_,OUTPUT);
+    }
 
-void loopVr() {
-}
+    void loop() {}
 
+};
+
+#endif // HMO_VREG_INCLUDED
