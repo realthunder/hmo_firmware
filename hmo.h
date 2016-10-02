@@ -10,12 +10,12 @@ private:
     uint32_t ticks_;
 
     // cheap timeout detection, when wrap around, the actual timeout may double
-    bool timeout(uint32_t t) const{
+    bool isTimeout(uint32_t t) const{
         return (ticks_>=start_&&(ticks_-start_)>=t) ||
             (ticks_<start_&&ticks_>=t);
     }
     // accurate timeout detection
-    bool timeout2(uint32_t t) const{
+    bool isTimeout2(uint32_t t) const{
         return (ticks_>=start_&&(ticks_-start_)>=t) || 
             (ticks_<start_&&((0xffffffff-start_)+ticks_)>=t);
     }
@@ -28,25 +28,25 @@ public:
     void reset() {
         start_ = millis();
     }
-    bool timeout(unsigned long t) {
+    bool timeout(uint32_t t) {
         ticks_ = millis();
-        return timeout(t);
+        return isTimeout(t);
     }
-    bool timeout2(unsigned long t) {
+    bool timeout2(uint32_t t) {
         ticks_ = millis();
-        return timeout2(t);
+        return isTimeout2(t);
     }
 
     void resetUs() {
         start_ = micros();
     }
-    bool timeoutUs(unsigned long t) {
+    bool timeoutUs(uint32_t t) {
         ticks_ = micros();
-        return timeout(t);
+        return isTimeout(t);
     }
-    bool timeout2Us(unsigned long t) {
+    bool timeout2Us(uint32_t t) {
         ticks_ = micros();
-        return timeout2(t);
+        return isTimeout2(t);
     }
 };
 

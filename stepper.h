@@ -9,7 +9,7 @@ private:
     unsigned delay_;
     unsigned overshoot_;
     byte toggle_;
-    byte dir_;
+    char dir_;
     const byte pinDir_;
     const byte pinStep_;
 
@@ -96,11 +96,10 @@ public:
                 pos_ += dir_;
                 if(counter_==1)
                     disable();
-                else {
+                else 
                     --counter_;
-                    toggle_ = !toggle_;
-                }
             }
+            toggle_ = !toggle_;
         }
     }
 

@@ -24,8 +24,8 @@
 #define PIN_FAN_PWM     11
 #define PIN_SRV_FOOT    12
 #define PIN_SRV_CAM     13
-#define PIN_BAT2_VOUT   A6
-#define PIN_BAT1_VOUT   A7
+#define PIN_BAT2_VOUT   A7
+#define PIN_BAT1_VOUT   A6
 
 #define PIN_EP_EN      0
 #define PIN_LED_EN     1
@@ -49,8 +49,8 @@
 class Body: public HmoModule {
 private:
     static Adafruit_MCP23017 mcp_;
-    static bool interruptPending_;
-    static bool buttonPending_;
+    volatile static bool interruptPending_;
+    volatile static bool buttonPending_;
     static byte button_;
 
 public:
@@ -61,23 +61,29 @@ public:
 
     static void stepperInterrupt(bool on) {
         if(on) {
-            mcp_.setupInterruptPin(PIN_FRAME_STOP,FALLING);
-            mcp_.setupInterruptPin(PIN_STEP_STOP1,FALLING);
-            mcp_.setupInterruptPin(PIN_STEP_STOP2,FALLING);
-            if(fan_.tachoActive())
+            mcp_.setupInterruptPin(PIN_FRAME_STOP,CHANGE);
+            mcp_.setupInterruptPin(PIN_STEP_STOP1,CHANGE);
+            mcp_.setupInterruptPin(PIN_STEP_STOP2,CHANGE);
+            if(fan_.tachoActive()) {
                 mcp_.setupInterruptPin(PIN_FAN_TACHO,LOW);
+                mcp_.pullUp(PIN_FAN_TACHO,LOW);
+            }
         }else{
             mcp_.setupInterruptPin(PIN_FRAME_STOP,LOW);
             mcp_.setupInterruptPin(PIN_STEP_STOP1,LOW);
             mcp_.setupInterruptPin(PIN_STEP_STOP2,LOW);
-            if(fan_.tachoActive())
-                mcp_.setupInterruptPin(PIN_FAN_TACHO,RISING);
+            if(fan_.tachoActive()){
+                mcp_.setupInterruptPin(PIN_FAN_TACHO,CHANGE);
+                mcp_.pullUp(PIN_FAN_TACHO,HIGH);
+            }
         }
     }
 
     static void fanInterrupt(bool on) {
-        if(!on || !st_.active())
-            mcp_.setupInterruptPin(PIN_FAN_TACHO,on?RISING:LOW);
+        if(!on || !st_.active()) {
+            mcp_.pullUp(PIN_FAN_TACHO,on?HIGH:LOW);
+            mcp_.setupInterruptPin(PIN_FAN_TACHO,on?CHANGE:LOW);
+        }
     }
 
     static void powerSetup(byte pin, byte value) {
@@ -108,12 +114,12 @@ public:
         mcp_.pullUp(PIN_BTN21,HIGH);
         mcp_.pullUp(PIN_BTN22,HIGH);
         mcp_.pullUp(PIN_BTN23,HIGH);
-        mcp_.setupInterruptPin(PIN_BTN11,FALLING);
-        mcp_.setupInterruptPin(PIN_BTN12,FALLING);
-        mcp_.setupInterruptPin(PIN_BTN13,FALLING);
-        mcp_.setupInterruptPin(PIN_BTN21,FALLING);
-        mcp_.setupInterruptPin(PIN_BTN22,FALLING);
-        mcp_.setupInterruptPin(PIN_BTN23,FALLING);
+        mcp_.setupInterruptPin(PIN_BTN11,CHANGE);
+        mcp_.setupInterruptPin(PIN_BTN12,CHANGE);
+        mcp_.setupInterruptPin(PIN_BTN13,CHANGE);
+        mcp_.setupInterruptPin(PIN_BTN21,CHANGE);
+        mcp_.setupInterruptPin(PIN_BTN22,CHANGE);
+        mcp_.setupInterruptPin(PIN_BTN23,CHANGE);
         mcp_.setupInterrupts(false,false,LOW);
 
         if(st_.active())
@@ -150,7 +156,7 @@ public:
         }else{
             switch(getarg(1)) {
             case 0:
-                powerSetup(PIN_EP_EN,getarg(1));
+                powerSetup(PIN_EP_EN,getarg(2));
                 break;
             }
         }
@@ -288,29 +294,27 @@ public:
         tmp_.setup();
         addBitlashFunction("tmp", tmpCmd);
 
-        // attachInterrupt(1,Body::onInterrupt,FALLING);
-        // attachInterrupt(1,Body::onButton,FALLING);
+        attachInterrupt(0,Body::onInterrupt,FALLING);
+        attachInterrupt(1,Body::onButton,FALLING);
     }
 
     virtual void loop() {
         if(!active()) return;
 
-        if(interruptPending_ || buttonPending_) {
-            uint16_t v = mcp_.readGPIOAB();
-
-            if(interruptPending_) {
-                interruptPending_ = false;
-                byte n = v&0xff;
-                if(st_.active() && 
-                    (n&((1<<PIN_FRAME_STOP)|(1<<PIN_STEP_STOP1)|(1<<PIN_STEP_STOP2))))
-                    st_.stop();
-                if(fan_.tachoActive() && (n&(1<<PIN_FAN_TACHO)))
-                    fan_.tachoCount();
-            }
-            if(buttonPending_) {
-                buttonPending_ = false;
-                button_ &= v>>8;
-            }
+        if(interruptPending_) {
+            interruptPending_ = false;
+            uint8_t n = mcp_.getInterruptPinValuesA();
+            if(st_.active() && 
+                ( !bitRead(n,PIN_FRAME_STOP) ||
+                    !bitRead(n,PIN_STEP_STOP1) ||
+                    !bitRead(n,PIN_STEP_STOP2)))
+                st_.stop();
+            if(fan_.tachoActive() && !bitRead(n,PIN_FAN_TACHO))
+                fan_.tachoCount();
+        }
+        if(buttonPending_) {
+            buttonPending_ = false;
+            button_ &= mcp_.getInterruptPinValuesB();
         }
 
         sv_.loop();
@@ -319,12 +323,11 @@ public:
         led_.loop();
         tmp_.loop();
     }
-
 };
 
 Adafruit_MCP23017 Body::mcp_;
-bool Body::interruptPending_;
-bool Body::buttonPending_;
+volatile bool Body::interruptPending_;
+volatile bool Body::buttonPending_;
 byte Body::button_;
 Body::BodyServoCtrl Body::sv_;
 Body::BodyStepper Body::st_;

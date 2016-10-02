@@ -75,7 +75,7 @@ public:
     }
 
     void loop() {
-        //gradrual change value to target
+        //gradual change value to target
         if(active_ && value_!=target_) {
             if(t_.timeout(SHD_INTERVAL)) {
                 if(value_ > target_)

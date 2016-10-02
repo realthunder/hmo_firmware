@@ -23,8 +23,6 @@ protected:
     }
 
     void dirve(bool dir) {
-        //turn off shade first
-        disable();
         digitalWrite(pinDir_,dir?HIGH:LOW);
         digitalWrite(pinDir2_,dir?LOW:HIGH);
         if(!state_) {

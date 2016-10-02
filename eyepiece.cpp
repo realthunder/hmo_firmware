@@ -90,8 +90,7 @@ public:
         {}
         virtual void powerSetup(byte value) {
             //make sure stepper is deactivated because of SPI pins overload
-            if(value) 
-                Eyepiece::st_.disable();
+            digitalWrite(PIN_STEP_SLP,LOW);
             HmoVReg::powerSetup(value);
         }
     };
@@ -158,7 +157,7 @@ public:
     class EpServoCtrl: public HmoServoCtrl {
     protected:
         virtual void powerSetup(byte value) {
-            Eyepiece::powerSetup(VOLTAGE_4v5);
+            Eyepiece::powerSetup(value?VOLTAGE_4v5:0);
         }
 
     public:
@@ -179,8 +178,10 @@ public:
         if(value) {
             shd_.disable();
             vr_.powerSetup(value);
+            delay(100);
             digitalWrite(PIN_PWR_SEL,HIGH);
         }else{
+            vr_.powerSetup(0);
             digitalWrite(PIN_PWR_SEL,LOW);
         }
     }

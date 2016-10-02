@@ -1,5 +1,28 @@
 #!/bin/bash
 
+get_version() {
+    local ver
+    local head
+    local name=$1
+
+    if head=`git rev-parse --verify HEAD 2>/dev/null`; then
+        head=`echo "$head"`
+        ver=`printf '%s' "$head" | cut -c1-8`
+        if ! git status -uno | grep "nothing to commit" >/dev/null ; then
+            ver="$ver"M
+        fi
+    fi
+
+    cat > $name.tmp <<TMP_VER
+#define HMO_REVISION $ver
+TMP_VER
+    if `diff $name $name.tmp > /dev/null` ; then    
+        rm $name.tmp
+    else
+        mv -f $name.tmp $name
+    fi
+}
+
 board=
 flash=
 nosync=
@@ -31,6 +54,7 @@ if test $board && test -z $nosync; then
     done
     ssh precise642 "cd $path/$base && ./make.sh nosync $@"
 else
+    get_version revision.h
     make $args || exit
     if test $flash; then
         . scripts/tty.sh

@@ -10,10 +10,10 @@
 class HmoServoCtrl {
 private:
     struct HmoServo {
-        byte pin;
         unsigned interval;
         HmoTimer t_;
         Servo ctrl;
+        byte pin;
         byte active;
 
         HmoServo() 
@@ -23,7 +23,7 @@ private:
     };
 
     HmoServo *sv_;
-    byte count_;
+    const byte count_;
     byte activeCount_;
 
 protected:

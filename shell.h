@@ -6,6 +6,8 @@
 #include <avr/wdt.h>
 #endif
 
+#include "version.h"
+
 #ifndef SHELL_BAUDRATE
 #define SHELL_BAUDRATE 9600
 #endif
@@ -15,6 +17,8 @@
 #endif
 static byte shID;
 static byte shState;
+static byte shWakeupKey[4];
+
 byte BITLASH_TXEN = 1;
 
 // Hardware dependent code to enable/disable UART TX pin.
@@ -57,16 +61,31 @@ void shellReply(const char *c) {
     
 numvar idCmd() {
     byte n = getarg(0);
-    if(!BITLASH_TXEN) {//we received a broadcast id command
+    if(shState==5) {//we received a broadcast id command
         if(!n){
             // If no argument, increase the current ID, intended for quick
             // test of broadcast feature.
             ++shID; 
-        }else if(getarg(1) == 0) {
+        }else switch(getarg(1)){
+        case 0:
             // If the boradcast command has the first arguemnt as 0, then force print
             // out the current ID. This is in case we forgot the ID. Make sure
             // only a single device is online before doing this.
             enableTX(1);
+            break;
+        case 1:
+            // Sleep command to help online firmware upgrade
+            // For all device except the one with id in getarg(2), ignore all data 
+            // received from UART until receiving the wakeup key given in next 4 
+            // arguments
+            if(shID != getarg(2)) {
+                shWakeupKey[0] = getarg(3);
+                shWakeupKey[1] = getarg(4);
+                shWakeupKey[2] = getarg(5);
+                shWakeupKey[3] = getarg(6);
+                SHELL_SETSTATE(6);
+            }
+            return 0;
         }
     }else if(n) { //If has any argument, set id, and start state machine
         shID = getarg(1);
@@ -93,6 +112,8 @@ numvar idCmd() {
         sp("nil");
     }else
         spb(shID);
+    spb(' ');
+    sp(HMO_VERSION);
     speol();
     return 0;
 }
@@ -111,7 +132,7 @@ void setupShell() {
     shID = EEPROM.read(0);
     if(shID == 0xff) shID = 0;
     if(shID) {
-        BITLASH_TXEN = 0;
+        // BITLASH_TXEN = 0;
         SHELL_SETSTATE(2);
     }
 #endif
@@ -162,13 +183,29 @@ NEXT:
         c = Serial.peek();
         if(c == '\r' || c == '\n') {
             runBitlash();
+            if(shState!=6)
+                SHELL_SETSTATE(2);
             enableTX(0);
-            SHELL_SETSTATE(2);
             break;
         }
         // fall through
     case 0://hand over to bitlash
         runBitlash();
+        break;
+
+    case 6://sleeping, checking for wakeup key
+    case 7:
+    case 8:
+    case 9:
+        c = Serial.read();
+        if(c == shWakeupKey[shState-6]) {
+            if(shState == 9) //wakeup
+                SHELL_SETSTATE(2);
+            else
+                SHELL_SETSTATE(shState+1);
+        }else// NOTE! not dealing with repetitive bytes in the key here,
+             // so better not use keys with repetitive bytes.
+            SHELL_SETSTATE(6);
         break;
     }
 }
